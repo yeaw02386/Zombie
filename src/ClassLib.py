@@ -140,25 +140,32 @@ class Map:
         
         
     def spawnChunk(self,x1,y1,x2,y2,numChunk,numEntity):
-        n = numChunk**0.5
-        
-        m = []
-        lenght = (x2-x1)/n 
-        X1 = 0
-        Y1 = 0
-        for i in range(n):
-            mx = []
-            for j in range(n):
-                c = Chunk(j,i,1,2,3,4)
-                mx.append(c) 
-                X1 = x1 + lenght
-                Y1 = y1 + lenght
+        sqrNCh = int(numChunk**0.5)
+        num = int((x2-x1)/sqrNCh)
+        spt = int(numEntity/numChunk)
+        m =[]
+        x1 = 0
+        y1 = 0
+        x2 = num
+        y2 = num
+        for i in range(numChunk):
+            Mx = []
+            x1 = 0
+            x2 = num
+            for j in range(numChunk):
+                EN = self.genEntity(spt,x1,y1,x2,y2)
+                c = Chunk(j,i,x1,y1,x2,y2,EN)
+                Mx.append(c)
+                x1 = x1 + num
+                x2 = x2 + num
+                             
+            m.append(Mx)
+            y1 = y1 + num
+            y2 = y2 + num
                 
-
+        return m
                 
-
-                
-            m.append(mx) 
+             
         
     def genEntity(self,num,x1,y1,x2,y2):
         if self.z :return np.full(num,None)
