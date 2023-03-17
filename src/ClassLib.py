@@ -25,7 +25,7 @@ class People :
         self.x = np.random.randint(x1, x2)
         self.y = np.random.randint(y1, y2)
         self.walk = np.random.randint(200, 1000)
-        self.vision = np.random.randint(30, 200)
+        self.vision = np.random.randint(30, 180)
         p = np.random.randint(4, 10)/10
         self.rateWin = [p,1-p]
         
@@ -42,7 +42,7 @@ class Zombie :
         self.x = p.x
         self.y = p.y
         self.walk = int(p.walk/2)
-        self.vision = np.random.randint(30, 200)
+        self.vision = int(p.vision/2)
         
     def walkTo(self,x:int,y:int):
         self.x = x
@@ -109,10 +109,10 @@ class Chunk:
 
 
 class Base :
-    def __init__(self,chunk:Chunk,n) -> None:
+    def __init__(self,x,y,n) -> None:
         self.build = False
-        self.x = np.random.randint(chunk.x1, chunk.x2)
-        self.y = np.random.randint(chunk.y1, chunk.y2)
+        self.x = x
+        self.y = y
         self.now = 0
         self.max = n
         self.full = False
@@ -169,6 +169,13 @@ class Map:
             
         return np.array(people)
     
+    def genZombie(self):
+        m = self.map.flatten()
+        c = np.random.choice(m)
+        p = People(c.x1,c.y1,c.x2,c.y)
+        z = Zombie(p)
+        self.map[c.iy][c.ix].push(z)
+        
     def moveTo(self,x,y,chunkI1,chunkI2):
         y1,x1 = chunkI1
         y2,x2 = chunkI2
