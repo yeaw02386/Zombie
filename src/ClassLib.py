@@ -146,6 +146,7 @@ class Map:
                 mx.append(c) 
                 X1 = x1 + lenght
                 Y1 = y1 + lenght
+                
 
                 
 
