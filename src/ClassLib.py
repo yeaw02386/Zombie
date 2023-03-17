@@ -12,7 +12,6 @@ def gen8block(x, y, v): return [[y+v, x-v], [y+v, x], [y+v, x+v], [y, x+v],
                                 [y-v, x+v], [y-v, x], [y-v, x-v], [y, x-v],
                                 [y,x]]
 
-
 def compare8chunk(x1, y1, x2, y2, b): return [
     [b[0][0] > y1, b[0][1] < x1], [b[1][0] > y1, True],
     [b[2][0] > y1, b[2][1] > x2], [True, b[3][1] > x2],
@@ -34,6 +33,9 @@ class People :
         self.x = x
         self.y = y
         
+    def getPos(self):
+        return [self.x,self.y]
+        
 class Zombie :
     def __init__(self,p: People) -> None:
         self.inf = -1
@@ -45,6 +47,9 @@ class Zombie :
     def walkTo(self,x:int,y:int):
         self.x = x
         self.y = y
+        
+    def getPos(self):
+        return [self.x,self.y]
         
 class Chunk:
     def __init__(self,ix,iy,x1,y1,x2,y2,entity:np.ndarray) -> None:
@@ -74,8 +79,8 @@ class Chunk:
         if self.full <= self.now :
             self.regChunk()
         
-        self.e[self.now+1] = entity
         self.now += 1 
+        self.e[self.now] = entity
         
     def pop(self) :
         e = self.e[self.now]
@@ -85,7 +90,10 @@ class Chunk:
         return e
     
     def getData(self):
-        return self.e.shape[0]
+        get = np.vectorize(lambda e:e.getPos())
+        pos = get(self.e[:self.now+1])
+        
+        return (pos[:,0],pos[:,1])
     
     def findEntity(self,e):
         self.count = 0
@@ -94,12 +102,11 @@ class Chunk:
             if d <= p.vision+e.vision : self.count += 1
             
         fFind = np.vectorize(find)
-        fFind(e,self.e[:self.now])
+        fFind(e,self.e[:self.now+1])
         
         return self.count
     
-    def getData(self):
-        return self.e.shape
+
 
 class Base :
     def __init__(self,chunk:Chunk,n) -> None:
@@ -128,11 +135,11 @@ class Map:
         self.x2 = x2
         self.y2 = y2
         self.z = z
-        self.map = self.spawnChunk(x1,y1,x2,y2,numChunk)
+        self.map = self.spawnChunk(x1,y1,x2,y2,numChunk,numEntity)
         self.know = False
         
         
-    def spawnChunk(self,x1,y1,x2,y2,numChunk):
+    def spawnChunk(self,x1,y1,x2,y2,numChunk,numEntity):
         n = numChunk**0.5
         
         m = []
@@ -249,7 +256,18 @@ class Map:
                 else : self.peopleWalk(e,base,mapZ)
                 
     def getData(self):
-        dGet = np.vectorize(lambda c:c.getData())
-        num = dGet(self.map).sum()
-        
-        return num
+        getSize = np.vectorize(lambda x:x.now+1)
+        s = getSize(self.map)
+        x = np.zeros(sum(s),dtype=int)
+        y = np.zeros(sum(s),dtype=int)
+        cn = 0
+        ci = 0
+        for i in self.map:
+            for j in i :
+                ix,iy = j.getData()
+                x[cn:s[ci+1]] = ix
+                y[cn:s[ci+1]] = iy
+                ci += 1
+                cn += s[ci]
+                
+        return x,y
