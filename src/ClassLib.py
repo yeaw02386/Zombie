@@ -1,9 +1,10 @@
 import numpy as np
 import math
+from Entity import *
 
 distance = lambda x1, y1, x2, y2: math.sqrt((y1-y2)**2 + (x1-x2)**2)
 
-inBlock = lambda x,y,b: True if b.x2<x<b.x1 and b.y1<y<b.y2 else False
+inBlock = lambda x,y,b: True if (x>=b.x1 and x<=b.x2) and (b.y1<=y and y<=b.y2) else False
 
 genWay = lambda x,y,long,d: (int(x+long * np.cos(np.rad2deg(d))),
                                 int(y+long * np.sin(np.rad2deg(d))))
@@ -16,58 +17,31 @@ def compare8chunk(x1, y1, x2, y2, b): return [
     [b[0][0] > y1, b[0][1] < x1], [b[1][0] > y1, True],
     [b[2][0] > y1, b[2][1] > x2], [True, b[3][1] > x2],
     [b[4][0] < y2, b[4][1] > x2], [b[5][0] < y2, True],
-    [b[6][0] < x1, b[6][1] < y2], [True, b[7][1] < x1]]
+    [b[6][0] < x1, b[6][1] < y2], [True, b[7][1] < x1],
+    [True,True]]
 
 
-class People :
-    def __init__(self,x1: int, y1: int, x2: int, y2: int) -> None:
-        self.inf = 1
-        self.x = np.random.randint(x1, x2)
-        self.y = np.random.randint(y1, y2)
-        self.walk = np.random.randint(200, 1000)
-        self.vision = np.random.randint(30, 180)
-        p = np.random.randint(4, 10)/10
-        self.rateWin = [p,1-p]
-        
-    def walkTo(self,x:int,y:int):
-        self.x = x
-        self.y = y
-        
-    def getPos(self):
-        return [self.x,self.y]
-        
-class Zombie :
-    def __init__(self,p: People) -> None:
-        self.inf = -1
-        self.x = p.x
-        self.y = p.y
-        self.walk = int(p.walk/2)
-        self.vision = int(p.vision/2)
-        
-    def walkTo(self,x:int,y:int):
-        self.x = x
-        self.y = y
-        
-    def getPos(self):
-        return [self.x,self.y]
-        
 class Chunk:
-    def __init__(self,ix,iy,x1,y1,x2,y2,entity:np.ndarray) -> None:
+    def __init__(self,z,ix,iy,x1,y1,x2,y2,entity:np.ndarray) -> None:
         self.ix = ix
         self.iy = iy
         self.x1 = x1
         self.y1 = y1
         self.x2 = x2
         self.y2 = y2
-        self.around = gen8block(ix,iy,1)
+        self.around = np.array(gen8block(ix,iy,1))
         self.e = entity
-        self.now = 0
-        self.full = self.e.shape[0]-1
+        if z : self.now = 0
+        else : self.now = len(entity)-1
+        self.full = len(entity)-1
         self.count = 0
+        
+    def __repr__(self) -> str:
+        return f"x1:{self.x1},y1:{self.y1} x2:{self.x2},y1:{self.y2}"
         
     def regChunk(self):
         size = (self.full+1)*2
-        self.e = self.e.resize(size)
+        self.e.resize(size)
         self.full = size-1
         
     def compare(self,p8):
@@ -86,14 +60,20 @@ class Chunk:
         e = self.e[self.now]
         self.e[self.now] = None
         self.now -= 1
+        if self.now <= 0: self.now = 0
         
         return e
     
     def getData(self):
-        get = np.vectorize(lambda e:e.getPos())
-        pos = get(self.e[:self.now+1])
+        getx = np.vectorize(lambda e:e.getX())
+        gety = np.vectorize(lambda e:e.getY())
         
-        return (pos[:,0],pos[:,1])
+        try :
+            x = getx(self.e[:self.now+1])
+            y = gety(self.e[:self.now+1])
+            if self.now <= 1 : return ([],[])
+        except: return ([],[])
+        return (x,y)
     
     def findEntity(self,e):
         self.count = 0
@@ -105,42 +85,27 @@ class Chunk:
         fFind(e,self.e[:self.now+1])
         
         return self.count
-    
-
-
-class Base :
-    def __init__(self,x,y,n) -> None:
-        self.build = False
-        self.x = x
-        self.y = y
-        self.now = 0
-        self.max = n
-        self.full = False
-        
-    def isArrivedBase(self,p:People):
-        if not self.build or self.full: return False
-        
-        d = distance(p.x,p.y,self.x,self.y)
-        if d <= p.vision :
-            self.now += 1
-            if self.now >= self.max : 
-                self.full = True
-            return True
-        return False
-    
+class mapRange:
+    def __init__(self,x1,y1,x2,y2):
+        self.x1 = x1
+        self.y1 = y1
+        self.x2 = x2
+        self.y2 = y2
 class Map:
     def __init__(self,z,x1,y1,x2,y2,numChunk,numEntity) -> None:
         self.x1 = x1
         self.y1 = y1
         self.x2 = x2
         self.y2 = y2
+        self.ox = int((x2-x1)/2)
+        self.oy = int((y2-y1)/2)
+        self.range = mapRange(x1,y1,x2,y2)
         self.z = z
         self.map = self.spawnChunk(x1,y1,x2,y2,numChunk,numEntity)
         self.know = False
-        
-        
+         
     def spawnChunk(self,x1,y1,x2,y2,numChunk,numEntity):
-        sqrNCh = int(numChunk**0.5)
+        sqrNCh = int(math.sqrt(numChunk))
         num = int((x2-x1)/sqrNCh)
         spt = int(numEntity/numChunk)
         m =[]
@@ -148,13 +113,13 @@ class Map:
         y1 = 0
         x2 = num
         y2 = num
-        for i in range(numChunk):
+        for i in range(sqrNCh):
             Mx = []
             x1 = 0
             x2 = num
-            for j in range(numChunk):
+            for j in range(sqrNCh):
                 EN = self.genEntity(spt,x1,y1,x2,y2)
-                c = Chunk(j,i,x1,y1,x2,y2,EN)
+                c = Chunk(self.z,j,i,x1,y1,x2,y2,EN)
                 Mx.append(c)
                 x1 = x1 + num
                 x2 = x2 + num
@@ -163,12 +128,10 @@ class Map:
             y1 = y1 + num
             y2 = y2 + num
                 
-        return m
-                
-             
+        return np.array(m)   
         
     def genEntity(self,num,x1,y1,x2,y2):
-        if self.z :return np.full(num,None)
+        if self.z :np.full(num,None,dtype=Zombie)
         people = []
         for _ in range(num):
             p = People(x1,y1,x2,y2)
@@ -179,7 +142,7 @@ class Map:
     def genZombie(self):
         m = self.map.flatten()
         c = np.random.choice(m)
-        p = People(c.x1,c.y1,c.x2,c.y)
+        p = People(c.x1,c.y1,c.x2,c.y2)
         z = Zombie(p)
         self.map[c.iy][c.ix].push(z)
         
@@ -197,6 +160,7 @@ class Map:
             for j in i:
                 if inBlock(x,y,j):
                     return j
+        return j
         
     def chooseWay(self,e,n=1,base=None,mapZ=None):
         if self.know:
@@ -212,9 +176,13 @@ class Map:
         allWay = []
         for i in way:
             x,y = genWay(e.x,e.y,long,i)
-            if not inBlock(x, y,self.map):
-                x, y = genWay(e.x,e.y, long, i-180)
-                
+            ch = lambda a :self.x2 if a>self.x2 else self.x1 if a<self.x1 else a
+            if not inBlock(x,y,self.range):
+                x = ch(x)
+                y = ch(y)
+                # d = math.atan2(e.y-self.oy,e.x-self.ox)
+                # x,y = genWay(e.x,e.y, long, np.rad2deg(d))
+               
             c = self.findBlock(x, y)
             if self.z: return (x, y, c)
             
@@ -223,14 +191,16 @@ class Map:
             
             z = 0
             for iy,ix in chunkS:
-                z += mapZ.map[iy][ix].findEntity(e)
+                try:
+                    z += mapZ.map[iy][ix].findEntity(e)
+                except:pass
             
             allWay.append([z,x,y,c]) 
         
         if not self.know:return allWay[0]
         
         allWay.sort()
-        if not base.bulid and base.full:
+        if not base.build and base.full:
             return allWay[0] 
 
         dBase1 = distance(allWay[0][1],allWay[0][2], base.x,base.y)
@@ -247,7 +217,7 @@ class Map:
         if base.isArrivedBase(p) :
             return
         
-        fight = np.random.choice([True,False],z,True,[p.rateWin])
+        fight = np.random.choice([True,False],z,True,p.rateWin)
         
         if not fight.any():
             z = Zombie(p)
@@ -266,22 +236,27 @@ class Map:
         for i in range(iy):
             for j in range(ix):
                 e = self.map[i][j].pop()
+                if e == None : continue
                 if self.z : self.zombieWalk(e)
                 else : self.peopleWalk(e,base,mapZ)
                 
     def getData(self):
-        getSize = np.vectorize(lambda x:x.now+1)
-        s = getSize(self.map)
-        x = np.zeros(sum(s),dtype=int)
-        y = np.zeros(sum(s),dtype=int)
+        getSize = np.vectorize(lambda x: 0 if x.now<=1 else x.now+1)
+        s = np.array(getSize(self.map))
+        si = s.sum()
+        x = np.zeros(si,dtype=int)
+        y = np.zeros(si,dtype=int)
         cn = 0
         ci = 0
+        s = s.flatten()
+
         for i in self.map:
             for j in i :
+                print(j.now)
                 ix,iy = j.getData()
-                x[cn:s[ci+1]] = ix
-                y[cn:s[ci+1]] = iy
-                ci += 1
+                x[cn:cn+s[ci]] = ix
+                y[cn:cn+s[ci]] = iy
                 cn += s[ci]
+                ci += 1
                 
         return x,y
