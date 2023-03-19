@@ -31,16 +31,19 @@ class Chunk:
         self.y2 = y2
         self.around = np.array(gen8block(ix,iy,1))
         self.e = entity
-        if z : self.now = 0
-        else : self.now = len(entity)-1
+        self.z =z
+        if z : 
+            self.now = 0
+        else : 
+            self.now = len(entity)
         self.full = len(entity)-1
         self.count = 0
         
     def __repr__(self) -> str:
-        return f"x1:{self.x1},y1:{self.y1} x2:{self.x2},y1:{self.y2}"
+        return f"e::{self.z} All: {len(self.e)} Now:{self.now} ,x1:{self.x1},y1:{self.y1} x2:{self.x2},y1:{self.y2}"
         
     def regChunk(self):
-        size = (self.full+1)*2
+        size = (self.full+2)*2
         self.e.resize(size)
         self.full = size-1
         
@@ -50,40 +53,46 @@ class Chunk:
         return self.around[i]
         
     def push(self,entity) :
+        
         if self.full <= self.now :
             self.regChunk()
-        
-        self.now += 1 
+            
         self.e[self.now] = entity
+        self.now += 1
         
-    def pop(self) :
-        e = self.e[self.now]
-        self.e[self.now] = None
-        self.now -= 1
-        if self.now <= 0: self.now = 0
         
+        
+    def popAll(self):
+        if self.now != 0 and not self.z:n = self.now
+        else : n = self.now
+        e = np.copy(self.e[:n])
+        self.e[:n] = np.full_like(e,None)
+
+        self.now = 0
         return e
     
     def getData(self):
         getx = np.vectorize(lambda e:e.getX())
         gety = np.vectorize(lambda e:e.getY())
+        #if not self.z: print(self.e)
         
-        try :
-            x = getx(self.e[:self.now+1])
-            y = gety(self.e[:self.now+1])
-            if self.now <= 1 : return ([],[])
-        except: return ([],[])
+        if self.now == 0 : return ([],[])
+        
+        x = getx(self.e[:self.now])
+        y = gety(self.e[:self.now])
+
         return (x,y)
     
     def findEntity(self,e):
+        if self.now == 0 :return 0
         self.count = 0
         def find(e:Zombie,p:People):
             d = distance(p.x, p.y, e.x, e.y)
             if d <= p.vision+e.vision : self.count += 1
             
         fFind = np.vectorize(find)
-        fFind(e,self.e[:self.now+1])
-        
+        fFind(e,self.e[:self.now])
+
         return self.count
 class mapRange:
     def __init__(self,x1,y1,x2,y2):
@@ -131,7 +140,7 @@ class Map:
         return np.array(m)   
         
     def genEntity(self,num,x1,y1,x2,y2):
-        if self.z :np.full(num,None,dtype=Zombie)
+        if self.z : return np.full((num),None,dtype=Zombie)
         people = []
         for _ in range(num):
             p = People(x1,y1,x2,y2)
@@ -146,14 +155,6 @@ class Map:
         z = Zombie(p)
         self.map[c.iy][c.ix].push(z)
         
-    def moveTo(self,x,y,chunkI1,chunkI2):
-        y1,x1 = chunkI1
-        y2,x2 = chunkI2
-        
-        e = self.map[y1][x1].pop()
-        e.walkTo(x,y)
-        
-        self.map[y2][x2].push(e)
 
     def findBlock(self,x: int, y: int):
         for i in self.map:
@@ -184,7 +185,8 @@ class Map:
                 # x,y = genWay(e.x,e.y, long, np.rad2deg(d))
                
             c = self.findBlock(x, y)
-            if self.z: return (x, y, c)
+            if self.z: 
+                return (x, y, c)
             
             p8 = gen8block(x,y,e.vision)
             chunkS = c.compare(p8)
@@ -193,7 +195,7 @@ class Map:
             for iy,ix in chunkS:
                 try:
                     z += mapZ.map[iy][ix].findEntity(e)
-                except:pass
+                except :pass
             
             allWay.append([z,x,y,c]) 
         
@@ -216,14 +218,17 @@ class Map:
     
         if base.isArrivedBase(p) :
             return
-        
+        #print(z)
+        if z == 0 : 
+            self.map[c.iy][c.ix].push(p)
+            return 
+            
         fight = np.random.choice([True,False],z,True,p.rateWin)
-        
         if not fight.any():
             z = Zombie(p)
             mapZ.map[c.iy][c.ix].push(z)
             return
-            
+        
         self.map[c.iy][c.ix].push(p)
 
     def zombieWalk(self,z:Zombie):
@@ -235,28 +240,29 @@ class Map:
         iy,ix = self.map.shape
         for i in range(iy):
             for j in range(ix):
-                e = self.map[i][j].pop()
-                if e == None : continue
-                if self.z : self.zombieWalk(e)
-                else : self.peopleWalk(e,base,mapZ)
-                
+                e = self.map[i][j].popAll()
+                if len(e) == 0 :continue
+                if self.z : 
+                    # zWalk = np.vectorize(lambda e : self.zombieWalk(e))
+                    # zWalk(e)
+                    for z in e:
+                        self.zombieWalk(z)
+                else : 
+                    
+                    # pWalk = np.vectorize(lambda e,base,mapZ:self.peopleWalk(e,base,mapZ))
+                    # pWalk(e,base,mapZ)
+                    for p in e :
+                        self.peopleWalk(p,base,mapZ)
+        
     def getData(self):
-        getSize = np.vectorize(lambda x: 0 if x.now<=1 else x.now+1)
-        s = np.array(getSize(self.map))
-        si = s.sum()
-        x = np.zeros(si,dtype=int)
-        y = np.zeros(si,dtype=int)
-        cn = 0
-        ci = 0
-        s = s.flatten()
-
+        x = []
+        y = []
         for i in self.map:
             for j in i :
-                print(j.now)
                 ix,iy = j.getData()
-                x[cn:cn+s[ci]] = ix
-                y[cn:cn+s[ci]] = iy
-                cn += s[ci]
-                ci += 1
-                
+                x = x+list(ix)
+                y = y+list(iy)
+    
         return x,y
+    
+    
