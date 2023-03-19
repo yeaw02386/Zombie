@@ -5,7 +5,7 @@ from IPython.display import HTML
 
 people = Map(False,0,0,3000,3000,100,4000)
 zombie= Map(True,0,0,3000,3000,100,4000)
-base = Base(300,1000,400)
+base = Base(1500,1000,400)
 
 zombie.genZombie()
 
@@ -16,7 +16,7 @@ ax.set_ylim((0, 3000))
 
 peoplePlot, = ax.plot([],[],'c.')
 zombiePlot, = ax.plot([],[],'r.')
-basePlot, = ax.plot([],[],'ro',lw=3)
+basePlot, = ax.plot([],[],'yo',)
 
 def init():
     px,py = people.getData()
@@ -24,7 +24,7 @@ def init():
     
     peoplePlot.set_data(px,py)
     zombiePlot.set_data(zx,zy)
-
+    
 def animate(i):
     if (i >= 8): 
         base.build = True 
@@ -40,8 +40,11 @@ def animate(i):
     peoplePlot.set_data(px,py)
     zombiePlot.set_data(zx,zy)
     
+    if base.build :
+        basePlot.set_data([base.x],[base.y])
+    
     print(len(px),len(zx),base.now)
-    return (peoplePlot,zombiePlot)
+    return (peoplePlot,zombiePlot,basePlot)
     
 
 n = 30
